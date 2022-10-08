@@ -148,24 +148,70 @@ def p4Setup(*args):
     config = readP4Config()
 
 
+@callback(OpenMaya.MSceneMessage.kAfterSave)
+def save_callback(*args):
+    """Callback right after a file is saved"""
+    filepath = getRelativeFilePath()
+    if (not filepath): #Filepath isn't in directory, ignore
+        return 
+    connectToP4()
+    try:
+        p4.run( "files",  filepath)
+    except P4Exception:
+        #File check failed, means file isn't in perforce
+        addResponse = cmds.confirmDialog(message="The file you saved: {}, was not found in Perforce, would you like to add it.".format(filepath), button=["add", "cancel"])
+        if (addResponse == 'add'):
+            p4Add(None)
 
+@callback(OpenMaya.MSceneMessage.kAfterOpen)
+def afterOpen_callback(*args):
+    """Callback after a file is opened"""
+    filepath = getRelativeFilePath()
+    if (not filepath): #Filepath isn't in directory, ignore
+        return 
+    connectToP4()
+
+    try:
+        p4GetLatest(None) #Sync
+        print("Synced")
+    except P4Exception:
+        print("Already Synced")
+
+    try:
+        p4.run( "files",  filepath)
+        #Didn't fail, file already in perforce, ask to edit
+        editResponse = cmds.confirmDialog(message="Would you like to check out this file for editing?", button=["yes", "no"])
+        if (editResponse == "yes"):
+            p4Checkout(None)
+        
+    except P4Exception:
+        #File check failed, means file isn't in perforce
+        addResponse = cmds.confirmDialog(message="This file: {}, was not found in Perforce, would you like to add it.".format(filepath), button=["yes", "no"])
+        if (addResponse == "yes"):
+            p4Add(None)
+    
+        
 @callback(OpenMaya.MSceneMessage.kBeforeOpen)
 def open_callback(*args):
     """Callback when a file is being opened."""
     close_callback()  # Opening a file also closes the previously opened file
     filename = OpenMaya.MFileIO.beforeOpenFilename()
 
-    if '.ma' in filename or '.mb' in filename:
-        cmds.confirmDialog(message="You are opening {}".format(filename), button=["ok","cancel"])
-
 
 @callback(OpenMaya.MSceneMessage.kMayaExiting)
 @callback(OpenMaya.MSceneMessage.kBeforeNew)
 def close_callback(*args):
     """Callback when a file is being closed."""
+
+    filepath = getRelativeFilePath()
+    if (not filepath): #Filepath isn't in directory, ignore
+        return 
+    connectToP4()
+
     filename = cmds.file(q=True, sceneName=True)
-    if '.ma' in filename or '.mb' in filename:
-        cmds.confirmDialog(message="You are closing {}".format(filename), button=["ok","cancel"])
+    submitResponse = cmds.confirmDialog(message="Would you like to Submit any changes to {}?".format(filename), button=["yes","no"])
+    if (submitResponse == "yes"):
+        p4Submit(None)
 
 
 # Initialize the script plug-in
