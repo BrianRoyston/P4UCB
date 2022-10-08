@@ -27,6 +27,7 @@ INITIAL_CONFIG = {
 callbacks = {}
 callback_fns = []
 
+
 def callback(event):
     """Decorator that registers a function as a callback, handling errors."""
     def f(func):
@@ -146,7 +147,7 @@ def p4Setup(*args):
 @callback(OpenMaya.MSceneMessage.kBeforeOpen)
 def open_callback(*args):
     """Callback when a file is being opened."""
-    close_callback() # Opening a file also closes the previously opened file
+    close_callback()  # Opening a file also closes the previously opened file
     filename = OpenMaya.MFileIO.beforeOpenFilename()
 
     if '.ma' in filename or '.mb' in filename:
@@ -164,6 +165,7 @@ def close_callback(*args):
 
 # Initialize the script plug-in
 def initializePlugin(mobject):
+    """Load the plugin in Maya."""
     global custom_menu
     for event, callback in callbacks.items():
         callback_fns.append(OpenMaya.MSceneMessage.addCallback(event, callback))
