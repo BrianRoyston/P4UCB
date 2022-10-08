@@ -11,7 +11,7 @@ import configparser
 pluginDir = os.path.dirname(inspect.getsourcefile(lambda: None))
 
 sys.path.append(pluginDir + '/P4Library/') #Points Maya to the location of the P4 Library
-from P4 import P4,P4Exception 
+from P4 import P4,P4Exception
 
 import maya.OpenMaya as api
 
@@ -49,7 +49,7 @@ def readP4Config():
     return configParser['DEFAULT']
 
 config = readP4Config()
-p4 = P4()       
+p4 = P4()
 
 def connectToP4():
     if (not p4.connected()):
@@ -57,9 +57,14 @@ def connectToP4():
         p4.port = config['port']
         p4.user = config['user']
         p4.password = config['password']
-        p4.client = config['client']       
-        p4.connect()
-        p4.run_login()
+        p4.client = config['client']
+        try:
+            p4.connect()
+            p4.run_login()
+        except Exception as e:
+            cmds.confirmDialog(title='Cannot Connect to P4', icon='critical',
+                               message=str(e), button=["ok"])
+            raise e
 
 
 def getRelativeFilePath():
@@ -73,13 +78,22 @@ def getRelativeFilePath():
         return None
     extra, relativeFilePathLocal = maFile.split('/' + config['client'] + '/')
     return '//Animation_Production/' + relativeFilePathLocal
-    
 
-def p4GetLatest(*args):    
+
+def p4GetLatest(*args, verbose=True):
     print("p4GetLatest")
     connectToP4()
-    
-    p4.run_sync()
+
+    try:
+        p4.run_sync()
+    except Exception as e:
+        if 'up-to-date' in str(e):
+            if verbose:
+                cmds.confirmDialog(title='Succcessfully synced',
+                                   message='Files are already up to date', button=["ok"])
+        else:
+            cmds.confirmDialog(title='Error Syncing', icon='critical',
+                               message=str(e), button=["ok"])
 
 def p4Checkout(*args):
     print("p4Checkout")
@@ -88,7 +102,7 @@ def p4Checkout(*args):
     relativeFilePath = getRelativeFilePath()
     if (not relativeFilePath): #invalid file, skip
         return
-        
+
     myFiles = [relativeFilePath]
     p4.run( "edit", myFiles)
     p4.run( "lock", myFiles )
@@ -123,8 +137,10 @@ def p4Submit(*args):
     p4.run_submit( change )
 
 def p4Setup(*args):
-    print("p4Setup")
     """Display a window to allow changing Perforce config."""
+    global config
+    print("p4Setup")
+
     setup_window = cmds.window('Bugg Setup')
     cmds.rowColumnLayout()
 
@@ -145,6 +161,7 @@ def p4Setup(*args):
     cmds.showWindow(setup_window)
 
     #reset config values with new file
+    p4.disconnect()
     config = readP4Config()
 
 
@@ -153,7 +170,7 @@ def save_callback(*args):
     """Callback right after a file is saved"""
     filepath = getRelativeFilePath()
     if (not filepath): #Filepath isn't in directory, ignore
-        return 
+        return
     connectToP4()
     try:
         p4.run( "files",  filepath)
@@ -168,11 +185,11 @@ def afterOpen_callback(*args):
     """Callback after a file is opened"""
     filepath = getRelativeFilePath()
     if (not filepath): #Filepath isn't in directory, ignore
-        return 
+        return
     connectToP4()
 
     try:
-        p4GetLatest(None) #Sync
+        p4GetLatest(verbose=False) #Sync
         print("Synced")
     except P4Exception:
         print("Already Synced")
@@ -180,17 +197,17 @@ def afterOpen_callback(*args):
     try:
         p4.run( "files",  filepath)
         #Didn't fail, file already in perforce, ask to edit
-        editResponse = cmds.confirmDialog(message="Would you like to check out this file for editing?", button=["yes", "no"])
+        editResponse = cmds.confirmDialog(title='Check out?', message="Would you like to check out this file for editing?", button=["yes", "no"])
         if (editResponse == "yes"):
             p4Checkout(None)
-        
+
     except P4Exception:
         #File check failed, means file isn't in perforce
-        addResponse = cmds.confirmDialog(message="This file: {}, was not found in Perforce, would you like to add it.".format(filepath), button=["yes", "no"])
+        addResponse = cmds.confirmDialog(title='Add?', message="This file: {}, was not found in Perforce, would you like to add it.".format(filepath), button=["yes", "no"])
         if (addResponse == "yes"):
             p4Add(None)
-    
-        
+
+
 @callback(OpenMaya.MSceneMessage.kBeforeOpen)
 def open_callback(*args):
     """Callback when a file is being opened."""
@@ -205,11 +222,11 @@ def close_callback(*args):
 
     filepath = getRelativeFilePath()
     if (not filepath): #Filepath isn't in directory, ignore
-        return 
+        return
     connectToP4()
 
     filename = cmds.file(q=True, sceneName=True)
-    submitResponse = cmds.confirmDialog(message="Would you like to Submit any changes to {}?".format(filename), button=["yes","no"])
+    submitResponse = cmds.confirmDialog(title='Submit?', message="Would you like to Submit any changes to {}?".format(filename), button=["yes","no"])
     if (submitResponse == "yes"):
         p4Submit(None)
 
