@@ -13,6 +13,13 @@ from P4 import P4,P4Exception
 #command name that will be added to maya.cmds.
 kPluginCmdName = "p4_Submit"
 
+INITIAL_CONFIG = {
+    'port': '',
+    'user': '',
+    'password': '',
+    'client': '',
+}
+
 # Command
 class scriptedCommand(OpenMayaMPx.MPxCommand):
     def __init__(self):
@@ -25,7 +32,9 @@ class scriptedCommand(OpenMayaMPx.MPxCommand):
 pluginDir = os.path.dirname(inspect.getsourcefile(lambda: None))
 
 def readP4Config():
-    return config.read(pluginDir + '/config.txt')['DEFAULT']
+    config = configparser.ConfigParser()
+    config.read(pluginDir + '/config.txt')
+    return config['DEFAULT']
 
 def p4Submit():
     maFile = cmds.file(q=True, sn=True)
@@ -36,7 +45,7 @@ def p4Submit():
 
     config = readP4Config()
 
-    extra, relativeFilePath = maFile.split('/' + client + '/')
+    extra, relativeFilePath = maFile.split('/' + config['client'] + '/')
 
     print(relativeFilePath)
 
@@ -52,31 +61,32 @@ def p4Submit():
 
     change = p4.fetch_change()
 
-    myFiles = ['//' + relativeFilePath]
+    myFiles = ['//Animation_Production/' + relativeFilePath]
     p4.run( "add", myFiles)
     change._description = "Test Automated Change"
     change._files = myFiles
     p4.run_submit( change )
 
-def setup(_):
-    global setup_window
+def setup(*args):
+    """Display a window to allow changing Perforce config."""
     setup_window = cmds.window('Bugg Setup')
     cmds.rowColumnLayout()
 
-    cmds.textFieldGrp('textField_A', label = 'Textfield A: ')
-    cmds.textFieldGrp('textField_B', label = 'Textfeild B: ', tx='sample')
+    config = configparser.ConfigParser()
+    config.read(pluginDir + '/config.txt')
+    fields = {**INITIAL_CONFIG, **config['DEFAULT']}
+    for field, initial in fields.items():
+        cmds.textFieldGrp('textField_' + field, label=field + ': ', tx=initial)
 
-    cmds.button(label = 'Done', command = queryTextField)
+    def save_config(*args):
+        for field in fields:
+            config['DEFAULT'][field] = cmds.textFieldGrp('textField_' + field, query=True, text=True)
+        with open(pluginDir + '/config.txt', 'w') as configfile:
+            config.write(configfile)
+        cmds.deleteUI(setup_window)
 
-    cmds.showWindow( setup_window )
-
-def queryTextField(*args):
-
-    text_A = cmds.textFieldGrp( 'textField_A', query = True, text = True)
-    text_B = cmds.textFieldGrp( 'textField_B', query = True, text = True)
-
-    print(text_A, text_B)
-    cmds.deleteUI(setup_window)
+    cmds.button(label='Save', command=save_config)
+    cmds.showWindow(setup_window)
 
 # Creator
 def cmdCreator():
@@ -97,7 +107,7 @@ def initializePlugin(mobject):
 
     customMenu = cmds.menu('P4', parent=mel.eval("$retvalue = $gMainWindow;"))
     cmds.menuItem(label='Setup', command=setup, parent=customMenu)
-    cmds.menuItem(label='Submit', command='cmds.p4UCB_Submit()', parent=customMenu)
+    cmds.menuItem(label='Submit', command='cmds.p4_Submit()', parent=customMenu)
 
 
 # Uninitialize the script plug-in
