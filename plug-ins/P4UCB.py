@@ -126,15 +126,17 @@ def p4Submit(*args):
     if (not relativeFilePath): #invalid file, skip
         return
 
-    inputDescription = cmds.promptDialog(message="Enter a change description")
-    if (not inputDescription):
-        inputDescription = "Blank Description"
-    change = p4.fetch_change()
+    result = cmds.promptDialog(title='Submit Changes', message="Enter a change description",
+                               button=['Confirm'])
 
-    myFiles = [relativeFilePath]
-    change._description = inputDescription
-    change._files = myFiles
-    p4.run_submit( change )
+    if result == 'Confirm':
+        inputDescription = cmds.promptDialog(query=True, text=True) or "Blank Description"
+        change = p4.fetch_change()
+
+        myFiles = [relativeFilePath]
+        change._description = inputDescription
+        change._files = myFiles
+        p4.run_submit( change )
 
 def p4Setup(*args):
     """Display a window to allow changing Perforce config."""
