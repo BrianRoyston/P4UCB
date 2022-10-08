@@ -197,13 +197,13 @@ def afterOpen_callback(*args):
     try:
         p4.run( "files",  filepath)
         #Didn't fail, file already in perforce, ask to edit
-        editResponse = cmds.confirmDialog(title='Check out?', message="Would you like to check out this file for editing?", button=["yes", "no"])
-        if (editResponse == "yes"):
+        editResponse = cmds.confirmDialog(title='Check out?', message="Would you like to check out this file for editing?", button=["Check Out", "Don't Check Out"])
+        if (editResponse == "Check Out"):
             p4Checkout(None)
 
     except P4Exception:
         #File check failed, means file isn't in perforce
-        addResponse = cmds.confirmDialog(title='Add?', message="This file: {}, was not found in Perforce, would you like to add it.".format(filepath), button=["yes", "no"])
+        addResponse = cmds.confirmDialog(title='Add?', message="This file: {}, was not found in Perforce, would you like to add it.".format(filepath), button=["Add", "Don't Add"])
         if (addResponse == "yes"):
             p4Add(None)
 
@@ -226,8 +226,8 @@ def close_callback(*args):
     connectToP4()
 
     filename = cmds.file(q=True, sceneName=True)
-    submitResponse = cmds.confirmDialog(title='Submit?', message="Would you like to Submit any changes to {}?".format(filename), button=["yes","no"])
-    if (submitResponse == "yes"):
+    submitResponse = cmds.confirmDialog(title='Submit Changes?', message="Would you like to Submit any changes to {}?".format(filename), button=["Submit","Don't Submit"])
+    if (submitResponse == "Submit"):
         p4Submit(None)
 
 
