@@ -1,4 +1,5 @@
+[CONFIG]
 port = 209.129.168.15:1666
 user = Brian
 password = UCBFall2022
-client = BrianPerforceWS
+client = Brian_Workspace

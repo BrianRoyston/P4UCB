@@ -1,11 +1,14 @@
 import sys
 import maya.OpenMaya as OpenMaya
 import maya.OpenMayaMPx as OpenMayaMPx
+import configparser
 import os
 from maya import cmds
 import inspect
 
-sys.path.append('./P4Library/') #Points Maya to the location of the P4 Library
+pluginDir = os.path.dirname(inspect.getsourcefile(lambda: None))
+
+sys.path.append(pluginDir + '/P4Library/') #Points Maya to the location of the P4 Library
 from P4 import P4,P4Exception 
 
 import maya.OpenMaya as api
@@ -23,57 +26,54 @@ class scriptedCommand(OpenMayaMPx.MPxCommand):
         p4Submit()
 
 
-pluginDir = os.path.dirname(inspect.getsourcefile(lambda: None))
-
 def readP4Config():
-    f = open(pluginDir + '/config.txt', 'r')
-    lines = f.readlines()
-    port = ''
-    user = ''
-    password = ''
-    client = ''
-    for line in lines:
-        key, value = line.split('=')
-        key = key.strip()
-        value = value.strip()
-        if key == 'port':
-            port = value
-        elif key == 'user':
-            user = value
-        elif key == 'password':
-            password = value
-        elif key == 'client':
-            client = value
+
+    config = configparser.ConfigParser()
+    config.read(pluginDir + '/config.txt')
+    port = config['CONFIG']['port']
+    user = config['CONFIG']['user']
+    password = config['CONFIG']['password']
+    client = config['CONFIG']['client']
 
     return port, user, password, client
 
+port, user, password, client = readP4Config()
+p4 = P4()                        
+p4.port = port
+p4.user = user
+p4.password = password
+p4.client = client            
+
+
+
+def p4GetLatest():    
+    if (not p4.connected()):
+        p4.connect()
+        p4.run_login()
+    
+    p4.run_sync()
 
 def p4Submit():
+    if (not p4.connected()):
+        p4.connect()
+        p4.run_login()
+
     maFile = cmds.file(q=True, sn=True)
 
     if (not maFile):
         print("File not saved, cannot push to perforce")
         return
 
-    port, user, password, client = readP4Config()
-
     extra, relativeFilePath = maFile.split('/' + client + '/')
 
     print(relativeFilePath)
 
 
-    p4 = P4()                        # Create the P4 instance
-    p4.port = port
-    p4.user = user
-    p4.password = password
-    p4.client = client            # Set some environment variables
 
-    p4.connect()
-    p4.run_login()
 
     change = p4.fetch_change()
 
-    myFiles = ['//' + relativeFilePath]
+    myFiles = ['//Animation_Production/' + relativeFilePath]
     p4.run( "add", myFiles)
     change._description = "Test Automated Change"
     change._files = myFiles 
