@@ -1,17 +1,17 @@
 import sys
 import maya.OpenMaya as OpenMaya
 import maya.OpenMayaMPx as OpenMayaMPx
+import maya.mel as mel
 import os
 from maya import cmds
 import inspect
+import configparser
 
 sys.path.append('./P4Library/') #Points Maya to the location of the P4 Library
-from P4 import P4,P4Exception 
-
-import maya.OpenMaya as api
+from P4 import P4,P4Exception
 
 #command name that will be added to maya.cmds.
-kPluginCmdName = "p4_Submit" 
+kPluginCmdName = "p4_Submit"
 
 # Command
 class scriptedCommand(OpenMayaMPx.MPxCommand):
@@ -22,31 +22,10 @@ class scriptedCommand(OpenMayaMPx.MPxCommand):
     def doIt(self,argList):
         p4Submit()
 
-
 pluginDir = os.path.dirname(inspect.getsourcefile(lambda: None))
 
 def readP4Config():
-    f = open(pluginDir + '/config.txt', 'r')
-    lines = f.readlines()
-    port = ''
-    user = ''
-    password = ''
-    client = ''
-    for line in lines:
-        key, value = line.split('=')
-        key = key.strip()
-        value = value.strip()
-        if key == 'port':
-            port = value
-        elif key == 'user':
-            user = value
-        elif key == 'password':
-            password = value
-        elif key == 'client':
-            client = value
-
-    return port, user, password, client
-
+    return config.read(pluginDir + '/config.txt')['DEFAULT']
 
 def p4Submit():
     maFile = cmds.file(q=True, sn=True)
@@ -55,7 +34,7 @@ def p4Submit():
         print("File not saved, cannot push to perforce")
         return
 
-    port, user, password, client = readP4Config()
+    config = readP4Config()
 
     extra, relativeFilePath = maFile.split('/' + client + '/')
 
@@ -63,10 +42,10 @@ def p4Submit():
 
 
     p4 = P4()                        # Create the P4 instance
-    p4.port = port
-    p4.user = user
-    p4.password = password
-    p4.client = client            # Set some environment variables
+    p4.port = config['port']
+    p4.user = config['user']
+    p4.password = config['password']
+    p4.client = config['client']            # Set some environment variables
 
     p4.connect()
     p4.run_login()
@@ -76,12 +55,28 @@ def p4Submit():
     myFiles = ['//' + relativeFilePath]
     p4.run( "add", myFiles)
     change._description = "Test Automated Change"
-    change._files = myFiles 
+    change._files = myFiles
     p4.run_submit( change )
 
+def setup(_):
+    global setup_window
+    setup_window = cmds.window('Bugg Setup')
+    cmds.rowColumnLayout()
 
-    
+    cmds.textFieldGrp('textField_A', label = 'Textfield A: ')
+    cmds.textFieldGrp('textField_B', label = 'Textfeild B: ', tx='sample')
 
+    cmds.button(label = 'Done', command = queryTextField)
+
+    cmds.showWindow( setup_window )
+
+def queryTextField(*args):
+
+    text_A = cmds.textFieldGrp( 'textField_A', query = True, text = True)
+    text_B = cmds.textFieldGrp( 'textField_B', query = True, text = True)
+
+    print(text_A, text_B)
+    cmds.deleteUI(setup_window)
 
 # Creator
 def cmdCreator():
@@ -89,27 +84,32 @@ def cmdCreator():
 
 # Initialize the script plug-in
 def initializePlugin(mobject):
-    global saveCallback
+    global saveCallback, customMenu
     mplugin = OpenMayaMPx.MFnPlugin(mobject)
     try:
         mplugin.registerCommand( kPluginCmdName, cmdCreator )
     except:
         sys.stderr.write( "Failed to register command: %s\n" % kPluginCmdName )
         raise
-    saveCallback = api.MSceneMessage.addCallback(
-        api.MSceneMessage.kAfterSave,
+    saveCallback = OpenMaya.MSceneMessage.addCallback(
+        OpenMaya.MSceneMessage.kAfterSave,
         saveCallbackFunc)
+
+    customMenu = cmds.menu('P4', parent=mel.eval("$retvalue = $gMainWindow;"))
+    cmds.menuItem(label='Setup', command=setup, parent=customMenu)
+    cmds.menuItem(label='Submit', command='cmds.p4UCB_Submit()', parent=customMenu)
 
 
 # Uninitialize the script plug-in
 def uninitializePlugin(mobject):
     mplugin = OpenMayaMPx.MFnPlugin(mobject)
+    cmds.deleteUI(customMenu)
     try:
         mplugin.deregisterCommand( kPluginCmdName )
     except:
         sys.stderr.write( "Failed to unregister command: %s\n" % kPluginCmdName )
     try:
-        api.MCommandMessage.removeCallback(saveCallback)
+        OpenMaya.MCommandMessage.removeCallback(saveCallback)
     except RuntimeError as e:
         print(e)
 
