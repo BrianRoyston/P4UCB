@@ -3,9 +3,14 @@ import maya.OpenMaya as OpenMaya
 import maya.OpenMayaMPx as OpenMayaMPx
 import os
 from maya import cmds
+import inspect
+
+sys.path.append('./P4Library/') #Points Maya to the location of the P4 Library
+from P4 import P4,P4Exception 
 
 
-kPluginCmdName = "p4UCB_Submit"
+#command name that will be added to maya.cmds.
+kPluginCmdName = "p4_Submit" 
 
 # Command
 class scriptedCommand(OpenMayaMPx.MPxCommand):
@@ -16,8 +21,65 @@ class scriptedCommand(OpenMayaMPx.MPxCommand):
     def doIt(self,argList):
         p4Submit()
 
+
+pluginDir = os.path.dirname(inspect.getsourcefile(lambda: None))
+
+def readP4Config():
+    f = open(pluginDir + '/config.txt', 'r')
+    lines = f.readlines()
+    port = ''
+    user = ''
+    password = ''
+    client = ''
+    for line in lines:
+        key, value = line.split('=')
+        key = key.strip()
+        value = value.strip()
+        if key == 'port':
+            port = value
+        elif key == 'user':
+            user = value
+        elif key == 'password':
+            password = value
+        elif key == 'client':
+            client = value
+
+    return port, user, password, client
+
+
 def p4Submit():
-    os.system('cd C:/Users/brian/OneDrive/Documents/maya/2022/plug-ins/ & python P4Test.py')
+    maFile = cmds.file(q=True, sn=True)
+
+    if (not maFile):
+        print("File not saved, cannot push to perforce")
+        return
+
+    port, user, password, client = readP4Config()
+
+    extra, relativeFilePath = maFile.split('/' + client + '/')
+
+    print(relativeFilePath)
+
+
+    p4 = P4()                        # Create the P4 instance
+    p4.port = port
+    p4.user = user
+    p4.password = password
+    p4.client = client            # Set some environment variables
+
+    p4.connect()
+    p4.run_login()
+
+    change = p4.fetch_change()
+
+    myFiles = ['//' + relativeFilePath]
+    p4.run( "add", myFiles)
+    change._description = "Test Automated Change"
+    change._files = myFiles 
+    p4.run_submit( change )
+
+
+    
 
 
     
