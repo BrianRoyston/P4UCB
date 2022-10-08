@@ -76,11 +76,13 @@ def getRelativeFilePath():
     
 
 def p4GetLatest(*args):    
+    print("p4GetLatest")
     connectToP4()
     
     p4.run_sync()
 
 def p4Checkout(*args):
+    print("p4Checkout")
     connectToP4()
 
     relativeFilePath = getRelativeFilePath()
@@ -92,6 +94,7 @@ def p4Checkout(*args):
     p4.run( "lock", myFiles )
 
 def p4Add(*args):
+    print("p4Add")
     connectToP4()
 
     relativeFilePath = getRelativeFilePath()
@@ -102,6 +105,7 @@ def p4Add(*args):
     p4.run( "add", myFiles)
 
 def p4Submit(*args):
+    print("p4Submit")
     connectToP4()
 
     relativeFilePath = getRelativeFilePath()
@@ -119,6 +123,7 @@ def p4Submit(*args):
     p4.run_submit( change )
 
 def p4Setup(*args):
+    print("p4Setup")
     """Display a window to allow changing Perforce config."""
     setup_window = cmds.window('Bugg Setup')
     cmds.rowColumnLayout()

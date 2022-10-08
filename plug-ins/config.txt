@@ -1,6 +1,6 @@
 [DEFAULT]
 port = 209.129.168.15:1666
-user = Name
+user = Brian
 password = UCBFall2022
-client = Workspace
+client = Brian_Workspace
 
