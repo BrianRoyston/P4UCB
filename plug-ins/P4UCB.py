@@ -21,6 +21,7 @@ pluginDir = os.path.dirname(inspect.getsourcefile(lambda: None))
 callbacks = {}
 callback_fns = []
 
+
 def callback(event):
     """Decorator that registers a function as a callback, handling errors."""
     def f(func):
@@ -39,6 +40,7 @@ def readP4Config():
     config = configparser.ConfigParser()
     config.read(pluginDir + '/config.txt')
     return config['DEFAULT']
+
 
 def p4_submit(*args):
     maFile = cmds.file(q=True, sn=True)
@@ -71,6 +73,7 @@ def p4_submit(*args):
     change._files = myFiles
     p4.run_submit( change )
 
+
 def p4_setup(*args):
     """Display a window to allow changing Perforce config."""
     setup_window = cmds.window('Bugg Setup')
@@ -92,15 +95,11 @@ def p4_setup(*args):
     cmds.button(label='Save', command=save_config)
     cmds.showWindow(setup_window)
 
-# Creator
-def cmdCreator():
-    return OpenMayaMPx.asMPxPtr( scriptedCommand() )
-
 
 @callback(OpenMaya.MSceneMessage.kBeforeOpen)
 def open_callback(*args):
     """Callback when a file is being opened."""
-    close_callback() # Opening a file also closes the previously opened file
+    close_callback()  # Opening a file also closes the previously opened file
     filename = OpenMaya.MFileIO.beforeOpenFilename()
 
     if '.ma' in filename or '.mb' in filename:
@@ -118,6 +117,7 @@ def close_callback(*args):
 
 # Initialize the script plug-in
 def initializePlugin(mobject):
+    """Load the plugin in Maya."""
     global custom_menu
     mplugin = OpenMayaMPx.MFnPlugin(mobject)
 
@@ -131,6 +131,7 @@ def initializePlugin(mobject):
 
 # Uninitialize the script plug-in
 def uninitializePlugin(mobject):
+    """Remove the plugin from Maya."""
     mplugin = OpenMayaMPx.MFnPlugin(mobject)
     cmds.deleteUI(custom_menu)
 
