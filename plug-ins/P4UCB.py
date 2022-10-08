@@ -23,14 +23,22 @@ INITIAL_CONFIG = {
     'client': '',
 }
 
-# Command
-class scriptedCommand(OpenMayaMPx.MPxCommand):
-    def __init__(self):
-        OpenMayaMPx.MPxCommand.__init__(self)
 
-    # Invoked when the command is run.
-    def doIt(self,argList):
-        p4Submit()
+callbacks = {}
+callback_fns = []
+
+def callback(event):
+    """Decorator that registers a function as a callback, handling errors."""
+    def f(func):
+        def wrapped_func(*args):
+            try:
+                return func(*args)
+            except Exception as e:
+                cmds.confirmDialog(title='P4UCB Error', icon='critical',
+                                   message=str(e), button=["ok"])
+        callbacks[event] = wrapped_func
+        return func
+    return f
 
 
 def readP4Config():
@@ -109,7 +117,7 @@ def p4Submit(*args):
     change._files = myFiles
     p4.run_submit( change )
 
-def setup(*args):
+def p4_setup(*args):
     """Display a window to allow changing Perforce config."""
     setup_window = cmds.window('Bugg Setup')
     cmds.rowColumnLayout()
@@ -137,6 +145,26 @@ def setup(*args):
 def cmdCreator():
     return OpenMayaMPx.asMPxPtr( scriptedCommand() )
 
+
+@callback(OpenMaya.MSceneMessage.kBeforeOpen)
+def open_callback(*args):
+    """Callback when a file is being opened."""
+    close_callback() # Opening a file also closes the previously opened file
+    filename = OpenMaya.MFileIO.beforeOpenFilename()
+
+    if '.ma' in filename or '.mb' in filename:
+        cmds.confirmDialog(message="You are opening {}".format(filename), button=["ok","cancel"])
+
+
+@callback(OpenMaya.MSceneMessage.kMayaExiting)
+@callback(OpenMaya.MSceneMessage.kBeforeNew)
+def close_callback(*args):
+    """Callback when a file is being closed."""
+    filename = cmds.file(q=True, sceneName=True)
+    if '.ma' in filename or '.mb' in filename:
+        cmds.confirmDialog(message="You are closing {}".format(filename), button=["ok","cancel"])
+
+
 # Initialize the script plug-in
 def initializePlugin(mobject):
     global saveCallback, customMenu
@@ -158,14 +186,4 @@ def uninitializePlugin(mobject):
     try:
         OpenMaya.MCommandMessage.removeCallback(saveCallback)
     except RuntimeError as e:
-        print(e)
-
-def saveCallbackFunc(*args):
-    try:
-        fileName = cmds.file(q=True, sceneName=True)
-
-        if '.ma' in fileName or '.mb' in fileName:
-            cmds.confirmDialog(message="You saved {}".format(fileName), button=["ok","cancel"])
-    except Exception as e:
-        # Print in case I made an oopsie
-        print(e)
+        sys.stderr.write("Failed to unregister callbacks: %s\n" % e)
