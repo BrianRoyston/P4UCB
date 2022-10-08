@@ -117,7 +117,7 @@ def p4Submit(*args):
     change._files = myFiles
     p4.run_submit( change )
 
-def p4_setup(*args):
+def p4Setup(*args):
     """Display a window to allow changing Perforce config."""
     setup_window = cmds.window('Bugg Setup')
     cmds.rowColumnLayout()
@@ -141,9 +141,6 @@ def p4_setup(*args):
     #reset config values with new file
     config = readP4Config()
 
-# Creator
-def cmdCreator():
-    return OpenMayaMPx.asMPxPtr( scriptedCommand() )
 
 
 @callback(OpenMaya.MSceneMessage.kBeforeOpen)
@@ -167,23 +164,26 @@ def close_callback(*args):
 
 # Initialize the script plug-in
 def initializePlugin(mobject):
-    global saveCallback, customMenu
-    saveCallback = OpenMaya.MSceneMessage.addCallback(
-        OpenMaya.MSceneMessage.kAfterSave,
-        saveCallbackFunc)
+    global custom_menu
+    for event, callback in callbacks.items():
+        callback_fns.append(OpenMaya.MSceneMessage.addCallback(event, callback))
 
-    customMenu = cmds.menu('P4', parent=mel.eval("$retvalue = $gMainWindow;"))
-    cmds.menuItem(label='Setup', command=setup, parent=customMenu)
-    cmds.menuItem(label='Sync', command=p4GetLatest, parent=customMenu)
-    cmds.menuItem(label='Add To Perforce', command=p4Add, parent=customMenu)
-    cmds.menuItem(label='Start Editing', command=p4Checkout, parent=customMenu)
-    cmds.menuItem(label='Submit', command=p4Submit, parent=customMenu)
+    custom_menu = cmds.menu('P4', parent=mel.eval("$retvalue = $gMainWindow;"))
+    cmds.menuItem(label='Setup', command=p4Setup, parent=custom_menu)
+    cmds.menuItem(label='Sync', command=p4GetLatest, parent=custom_menu)
+    cmds.menuItem(label='Add To Perforce', command=p4Add, parent=custom_menu)
+    cmds.menuItem(label='Start Editing', command=p4Checkout, parent=custom_menu)
+    cmds.menuItem(label='Submit', command=p4Submit, parent=custom_menu)
 
 
 # Uninitialize the script plug-in
 def uninitializePlugin(mobject):
-    cmds.deleteUI(customMenu)
+    """Remove the plugin from Maya."""
+    mplugin = OpenMayaMPx.MFnPlugin(mobject)
+    cmds.deleteUI(custom_menu)
+
     try:
-        OpenMaya.MCommandMessage.removeCallback(saveCallback)
+        for fn in callback_fns:
+            OpenMaya.MCommandMessage.removeCallback(fn)
     except RuntimeError as e:
         sys.stderr.write("Failed to unregister callbacks: %s\n" % e)
