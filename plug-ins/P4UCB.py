@@ -1,21 +1,25 @@
 import sys
+import configparser
+import os
+import inspect
+import ssl
+from io import BytesIO
+from zipfile import ZipFile
+from urllib.request import urlopen
+import tempfile
+from distutils.dir_util import copy_tree
+
 import maya.OpenMaya as OpenMaya
 import maya.OpenMayaMPx as OpenMayaMPx
-import configparser
 import maya.mel as mel
-import os
 from maya import cmds
-import inspect
-import configparser
 
 pluginDir = os.path.dirname(inspect.getsourcefile(lambda: None))
 
 sys.path.append(pluginDir + '/P4Library/') #Points Maya to the location of the P4 Library
 from P4 import P4,P4Exception
 
-import maya.OpenMaya as api
-
-
+ARCHIVE_URL = 'https://github.com/BrianRoyston/P4UCB/archive/refs/heads/main.zip'
 INITIAL_CONFIG = {
     'port': '',
     'user': '',
@@ -166,6 +170,14 @@ def p4Setup(*args):
     p4.disconnect()
     config = readP4Config()
 
+def p4Update(*args):
+    """Update the plug-in from GitHub."""
+    resp = urlopen(ARCHIVE_URL, context=ssl.SSLContext())
+    myzip = ZipFile(BytesIO(resp.read()))
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        myzip.extractall(tmpdirname)
+        copy_tree(tmpdirname + '/P4UCB-main/plug-ins', pluginDir)
 
 @callback(OpenMaya.MSceneMessage.kAfterSave)
 def save_callback(*args):
@@ -242,6 +254,7 @@ def initializePlugin(mobject):
 
     custom_menu = cmds.menu('P4', parent=mel.eval("$retvalue = $gMainWindow;"))
     cmds.menuItem(label='Setup', command=p4Setup, parent=custom_menu)
+    cmds.menuItem(label='Update', command=p4Update, parent=custom_menu)
     cmds.menuItem(label='Sync', command=p4GetLatest, parent=custom_menu)
     cmds.menuItem(label='Add To Perforce', command=p4Add, parent=custom_menu)
     cmds.menuItem(label='Start Editing', command=p4Checkout, parent=custom_menu)
