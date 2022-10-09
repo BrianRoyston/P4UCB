@@ -55,6 +55,17 @@ def readP4Config():
 config = readP4Config()
 p4 = P4()
 
+def isFileOpened(filepath):
+    openedFiles = p4.run("opened")
+    for fileInfo in openedFiles:
+        if (fileInfo['depotFile'] == filepath): 
+            return True
+    return False
+
+def getOpenedList():
+    openedFiles = p4.run("opened")
+    return list(map(lambda fileInfo : fileInfo['depotFile'], openedFiles))
+
 def connectToP4():
     if (not p4.connected()):
         config = readP4Config()
@@ -74,7 +85,7 @@ def connectToP4():
 def getRelativeFilePath():
     maFile = cmds.file(q=True, sn=True)
     if (not maFile):
-        print("Warning: File not saved, cannot push to perforce")
+        print("Warning: File not saved, cannot check perforce")
         return None
 
     if (('/' + config['client'] + '/') not in maFile):
@@ -87,9 +98,15 @@ def getRelativeFilePath():
 def p4GetLatest(*args, verbose=True):
     print("p4GetLatest")
     connectToP4()
-
+    filepath = getRelativeFilePath()
     try:
-        p4.run_sync()
+        changedFiles = p4.run_sync()
+        """for fileInfo in changedFiles:
+            if (fileInfo['depotFile'] == filepath): 
+                reloadResponse = cmds.confirmDialog(title='Reload?', message='The current file was just updated with the last sync, would you like to re-open it?', button=["Yes", "No"])
+                if reloadResponse == "Yes":
+                    mel.eval("fopen " + cmds.file(q=True, sn=True))
+                return"""
     except Exception as e:
         if 'up-to-date' in str(e):
             if verbose:
@@ -107,6 +124,13 @@ def p4Checkout(*args):
     if (not relativeFilePath): #invalid file, skip
         return
 
+    openedResult = p4.run("opened","-a", relativeFilePath)
+    for fileInfo in openedResult:
+        if 'ourLock' in fileInfo.keys():
+            cmds.confirmDialog(title='File Locked', icon='critical',
+                                   message='This file is currently checked out and locked by: {}'.format(fileInfo['user']), button=["ok"])
+            return
+
     myFiles = [relativeFilePath]
     p4.run( "edit", myFiles)
     p4.run( "lock", myFiles )
@@ -122,11 +146,14 @@ def p4Add(*args):
     myFiles = [relativeFilePath]
     p4.run( "add", myFiles)
 
-def p4Submit(*args):
+def p4Submit(*args, filepathOverride = None):
     print("p4Submit")
     connectToP4()
 
-    relativeFilePath = getRelativeFilePath()
+    relativeFilePath = filepathOverride
+    if not relativeFilePath: #filepath override is None
+        relativeFilePath = getRelativeFilePath()
+
     if (not relativeFilePath): #invalid file, skip
         return
 
@@ -141,6 +168,26 @@ def p4Submit(*args):
         change._description = inputDescription
         change._files = myFiles
         p4.run_submit( change )
+
+def p4Revert(*args, filepathOverride = None):
+    print("p4Revert")
+
+    filename = cmds.file(q=True, sceneName=True)
+    confirmResponse = cmds.confirmDialog(title='Are you sure?', message="Are you sure you want to revert all local changes made to {}?".format(filename), button=["Revert","No"])
+    if (confirmResponse != "Revert"):
+        return
+
+    connectToP4()
+
+    relativeFilePath = filepathOverride
+    if not relativeFilePath: #filepath override is None
+        relativeFilePath = getRelativeFilePath()
+
+    if (not relativeFilePath): #invalid file, skip
+        return
+
+    myFiles = [relativeFilePath]
+    p4.run("revert", myFiles)
 
 def p4Setup(*args):
     """Display a window to allow changing Perforce config."""
@@ -186,30 +233,54 @@ def save_callback(*args):
     if (not filepath): #Filepath isn't in directory, ignore
         return
     connectToP4()
+
     try:
-        p4.run( "files",  filepath)
+        fileInfo = p4.run( "files",  filepath)
+
+        #file could still have been deleted in the past
+        if fileInfo[0]['action'] == 'delete':
+            addResponse = cmds.confirmDialog(message="The file you saved: {}, was not found in Perforce, would you like to add it.".format(filepath), button=["add", "cancel"])
+            if (addResponse == 'add'):
+                p4Add(None)
     except P4Exception:
         #File check failed, means file isn't in perforce
+        if (isFileOpened(filepath)):#file already opened no need to prompt
+            return
         addResponse = cmds.confirmDialog(message="The file you saved: {}, was not found in Perforce, would you like to add it.".format(filepath), button=["add", "cancel"])
         if (addResponse == 'add'):
             p4Add(None)
 
-@callback(OpenMaya.MSceneMessage.kAfterOpen)
-def afterOpen_callback(*args):
-    """Callback after a file is opened"""
-    filepath = getRelativeFilePath()
-    if (not filepath): #Filepath isn't in directory, ignore
-        return
+@callback(OpenMaya.MSceneMessage.kAfterNew)
+def afterNew_callback(*args):
+    """Callback after a new file is made"""
     connectToP4()
-
     try:
         p4GetLatest(verbose=False) #Sync
         print("Synced")
     except P4Exception:
         print("Already Synced")
 
+    openedFiles = getOpenedList()
+    if (len(openedFiles) > 0):
+        openedResponse = cmds.confirmDialog(title='Checked out files', message="The following files are still checkout out. What would you like to do? \n{}".format(openedFiles), button=["Submit All", "Revert All", "Ask me later"])
+        if openedResponse == "Submit All":
+            for filepath in openedFiles:
+                p4Submit(None, filepathOverride=filepath)
+        elif openedResponse == "Revert All":
+            for filepath in openedFiles:
+                p4Revert(None, filepathOverride=filepath)
+
+@callback(OpenMaya.MSceneMessage.kAfterOpen)
+def afterOpen_callback(*args):
+    """Callback after a file is opened"""
+    
+    afterNew_callback()
+
+    filepath = getRelativeFilePath()
+    if (not filepath): #Filepath isn't in directory, ignore
+        return
     try:
-        p4.run( "files",  filepath)
+        fileInfo = p4.run( "files", filepath)
         #Didn't fail, file already in perforce, ask to edit
         editResponse = cmds.confirmDialog(title='Check out?', message="Would you like to check out this file for editing?", button=["Check Out", "Don't Check Out"])
         if (editResponse == "Check Out"):
@@ -239,10 +310,14 @@ def close_callback(*args):
         return
     connectToP4()
 
-    filename = cmds.file(q=True, sceneName=True)
-    submitResponse = cmds.confirmDialog(title='Submit Changes?', message="Would you like to Submit any changes to {}?".format(filename), button=["Submit","Don't Submit"])
-    if (submitResponse == "Submit"):
-        p4Submit(None)
+    if isFileOpened(filepath):
+        filename = cmds.file(q=True, sceneName=True)
+        submitResponse = cmds.confirmDialog(title='Submit Changes?', message="{} is still checkout out, would you like to submit it or revert your changes?".format(filename), button=["Submit","Revert"])
+        if (submitResponse == "Submit"):
+            p4Submit(None)
+        if (submitResponse == "Revert"):
+            p4Revert(None)
+
 
 
 # Initialize the script plug-in
@@ -259,6 +334,7 @@ def initializePlugin(mobject):
     cmds.menuItem(label='Sync', command=p4GetLatest, parent=custom_menu)
     cmds.menuItem(label='Add To Perforce', command=p4Add, parent=custom_menu)
     cmds.menuItem(label='Start Editing', command=p4Checkout, parent=custom_menu)
+    cmds.menuItem(label='Revert', command=p4Revert, parent=custom_menu)
     cmds.menuItem(label='Submit', command=p4Submit, parent=custom_menu)
 
 
