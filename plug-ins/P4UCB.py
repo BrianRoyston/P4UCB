@@ -253,8 +253,9 @@ def initializePlugin(mobject):
         callback_fns.append(OpenMaya.MSceneMessage.addCallback(event, callback))
 
     custom_menu = cmds.menu('P4', parent=mel.eval("$retvalue = $gMainWindow;"))
-    cmds.menuItem(label='Setup', command=p4Setup, parent=custom_menu)
-    cmds.menuItem(label='Update', command=p4Update, parent=custom_menu)
+    cmds.menuItem(label='Setup Plugin', command=p4Setup, parent=custom_menu)
+    cmds.menuItem(label='Update Plugin', command=p4Update, parent=custom_menu)
+    cmds.menuItem(divider=True)
     cmds.menuItem(label='Sync', command=p4GetLatest, parent=custom_menu)
     cmds.menuItem(label='Add To Perforce', command=p4Add, parent=custom_menu)
     cmds.menuItem(label='Start Editing', command=p4Checkout, parent=custom_menu)
