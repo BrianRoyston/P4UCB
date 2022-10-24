@@ -324,21 +324,15 @@ def save_callback(*args):
 @callback(OpenMaya.MSceneMessage.kAfterNew)
 def afterNew_callback(*args):
     """Callback after a new file is made"""
+    ws = cmds.workspace(q=True, dir=True)
+    if (('/' + config['client'] + '/') not in ws): #Filepath isn't in directory, ignore
+        return
     connectToP4()
     try:
         p4GetLatest(verbose=False) #Sync
         print("Synced")
     except P4Exception:
         print("Already Synced")
-
-    openedFiles = getOpenedList()
-    if (len(openedFiles) > 0):
-        openedResponse = cmds.confirmDialog(title='Checked out files', message="The following files are still checkout out. What would you like to do? \n{}".format(openedFiles), button=["Submit All", "Revert All", "Ask me later"])
-        if openedResponse == "Submit All":
-            p4Submit(None)      
-        elif openedResponse == "Revert All":
-            for filepath in openedFiles:
-                p4Revert(None, filepathOverride=filepath)
 
 @callback(OpenMaya.MSceneMessage.kAfterOpen)
 def afterOpen_callback(*args):
@@ -363,12 +357,6 @@ def afterOpen_callback(*args):
             p4Add(None)
 
 
-@callback(OpenMaya.MSceneMessage.kBeforeOpen)
-def open_callback(*args):
-    """Callback when a file is being opened."""
-    close_callback()  # Opening a file also closes the previously opened file
-    filename = OpenMaya.MFileIO.beforeOpenFilename()
-
 
 @callback(OpenMaya.MSceneMessage.kMayaExiting)
 @callback(OpenMaya.MSceneMessage.kBeforeNew)
@@ -380,13 +368,11 @@ def close_callback(*args):
         return
     connectToP4()
 
-    if isFileOpened(filepath):
-        filename = cmds.file(q=True, sceneName=True)
-        submitResponse = cmds.confirmDialog(title='Submit Changes?', message="{} is still checkout out, would you like to submit it or revert your changes?".format(filename), button=["Submit","Revert"])
-        if (submitResponse == "Submit"):
+    openedFiles = getOpenedList()
+    if len(openedFiles) > 0:
+        submitResponse = cmds.confirmDialog(title='Submit Changes?', message='Do you want to submit your changes?', button=['Submit', 'Later'])
+        if (submitResponse == 'Submit'):
             p4Submit(None)
-        if (submitResponse == "Revert"):
-            p4Revert(None)
 
 
 
