@@ -234,7 +234,10 @@ def p4Submit(*args):
                     attachPosition = attachPosition)
 
 
-    cmds.layoutDialog(ui=checkboxPrompt)
+    if (len(openedFiles) > 0):
+        cmds.layoutDialog(ui=checkboxPrompt)
+    else:
+        cmds.confirmDialog(title='Submit Changes', message="Nothing to submit", button=["ok"])
 
 
 def p4Revert(*args, filepathOverride = None):
