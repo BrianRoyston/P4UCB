@@ -146,28 +146,96 @@ def p4Add(*args):
     myFiles = [relativeFilePath]
     p4.run( "add", myFiles)
 
-def p4Submit(*args, filepathOverride = None):
+def p4Submit(*args):
     print("p4Submit")
     connectToP4()
 
-    relativeFilePath = filepathOverride
-    if not relativeFilePath: #filepath override is None
-        relativeFilePath = getRelativeFilePath()
+    openedFiles = getOpenedList()
 
-    if (not relativeFilePath): #invalid file, skip
-        return
+    def submitFiles(*args):
+        selectedFiles = []
+        for i in range(len(openedFiles)):
+            if (cmds.checkBox("cb" + str(i), query=True, value=True)):
+                selectedFiles.append(openedFiles[i])
+        cmds.layoutDialog( dismiss="Continue")
 
-    result = cmds.promptDialog(title='Submit Changes', message="Enter a change description",
-                               button=['Confirm'])
+        if (len(selectedFiles) <= 0):
+            return # no files selected, nothing to submit
 
-    if result == 'Confirm':
-        inputDescription = cmds.promptDialog(query=True, text=True) or "Blank Description"
-        change = p4.fetch_change()
+        result = cmds.promptDialog(title='Submit Changes', message="Enter a change description",
+                                  button=['Cancel', 'Submit'])
+        if result == 'Submit':
+            inputDescription = cmds.promptDialog(query=True, text=True) or "Blank Description"
+            change = p4.fetch_change()
 
-        myFiles = [relativeFilePath]
-        change._description = inputDescription
-        change._files = myFiles
-        p4.run_submit( change )
+            myFiles = selectedFiles
+            change._description = inputDescription
+            change._files = myFiles
+            p4.run_submit( change )
+
+    def checkboxPrompt():
+        # Get the dialog's formLayout.
+        #
+        form = cmds.setParent(q=True)
+
+        # layoutDialog's are not resizable, so hard code a size here,
+        # to make sure all UI elements are visible.
+        #
+        cmds.formLayout(form, e=True, width=300)
+
+        t = cmds.text(l='Files To Submit')
+
+        spacer = 5
+        top = 5
+        edge = 5
+
+        # What the actual fuck is this UI system...
+        attachForm = [(t, 'top', top), (t, 'left', edge), (t, 'right', edge)]
+        attachNone = [(t, 'bottom')]
+        attachControl = []
+        attachPosition = []
+
+        above = t
+
+        checkBoxes = []
+        count = 0
+        for file in openedFiles:
+            cb = cmds.checkBox("cb" + str(count), label = file, value = True)
+            checkBoxes.append(cb)
+
+            attachControl.append((cb, 'top', spacer, above))
+            attachForm.append((cb, 'left', edge))
+            attachForm.append((cb, 'right', edge))
+            attachNone.append((cb, 'bottom'))
+
+            above = cb
+            count += 1
+        
+
+        b1 = cmds.button(label='Cancel', c='cmds.layoutDialog( dismiss="Cancel")')
+        b2 = cmds.button(label='Continue', c=submitFiles)
+
+        attachForm.append((b1, 'left', edge))
+        attachForm.append((b2, 'right', edge))
+        attachForm.append((b1, 'bottom', edge))
+        attachForm.append((b2, 'bottom', edge))
+
+        attachControl.append((b1, 'top', spacer, above))
+        attachControl.append((b2, 'top', spacer, above))
+
+        attachPosition.append((b1, 'right', spacer, 50))
+        attachPosition.append((b2, 'left', spacer, 50))
+
+
+        cmds.formLayout(form, edit=True,
+                    attachForm = attachForm,
+                    attachNone = attachNone,
+                    attachControl = attachControl,
+                    attachPosition = attachPosition)
+
+
+    cmds.layoutDialog(ui=checkboxPrompt)
+
 
 def p4Revert(*args, filepathOverride = None):
     print("p4Revert")
@@ -264,8 +332,7 @@ def afterNew_callback(*args):
     if (len(openedFiles) > 0):
         openedResponse = cmds.confirmDialog(title='Checked out files', message="The following files are still checkout out. What would you like to do? \n{}".format(openedFiles), button=["Submit All", "Revert All", "Ask me later"])
         if openedResponse == "Submit All":
-            for filepath in openedFiles:
-                p4Submit(None, filepathOverride=filepath)
+            p4Submit(None)      
         elif openedResponse == "Revert All":
             for filepath in openedFiles:
                 p4Revert(None, filepathOverride=filepath)
