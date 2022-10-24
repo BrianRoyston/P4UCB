@@ -7,7 +7,7 @@ from io import BytesIO
 from zipfile import ZipFile
 from urllib.request import urlopen
 import tempfile
-from distutils.dir_util import copy_tree
+import shutil
 
 import maya.OpenMaya as OpenMaya
 import maya.OpenMayaMPx as OpenMayaMPx
@@ -58,7 +58,7 @@ p4 = P4()
 def isFileOpened(filepath):
     openedFiles = p4.run("opened")
     for fileInfo in openedFiles:
-        if (fileInfo['depotFile'] == filepath): 
+        if (fileInfo['depotFile'] == filepath):
             return True
     return False
 
@@ -102,7 +102,7 @@ def p4GetLatest(*args, verbose=True):
     try:
         changedFiles = p4.run_sync()
         """for fileInfo in changedFiles:
-            if (fileInfo['depotFile'] == filepath): 
+            if (fileInfo['depotFile'] == filepath):
                 reloadResponse = cmds.confirmDialog(title='Reload?', message='The current file was just updated with the last sync, would you like to re-open it?', button=["Yes", "No"])
                 if reloadResponse == "Yes":
                     mel.eval("fopen " + cmds.file(q=True, sn=True))
@@ -292,7 +292,7 @@ def p4Update(*args):
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         myzip.extractall(tmpdirname)
-        copy_tree(tmpdirname + '/P4UCB-main/plug-ins', pluginDir)
+        shutil.copyfile(tmpdirname + '/P4UCB-main/plug-ins/p4UCB.py', pluginDir + '/p4UCB.py')
 
 @callback(OpenMaya.MSceneMessage.kAfterSave)
 def save_callback(*args):
@@ -340,7 +340,7 @@ def afterNew_callback(*args):
 @callback(OpenMaya.MSceneMessage.kAfterOpen)
 def afterOpen_callback(*args):
     """Callback after a file is opened"""
-    
+
     afterNew_callback()
 
     filepath = getRelativeFilePath()
