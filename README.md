@@ -3,6 +3,8 @@ This plug-in was originally developed by Brian Royston and Ryan Adolf for use in
 It was originally made for this use case primarily, so other use cases may require some tweaking. If your whole team is on Windows, there is an official plug-in called 
 P4GT, but it is only available on Windows, hence why we made this.
 
+Has only been tested on Maya 2022
+
 # Setup
 1) Make sure you have Perforce (https://www.perforce.com/downloads/helix-visual-client-p4v)
 2) Clone this repository, or Download Zip.
